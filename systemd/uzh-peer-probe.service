@@ -1,0 +1,17 @@
+[Unit]
+Description=UZH Peer Oracle Zone Probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=uzh-peer-probe
+Group=uzh-peer-probe
+EnvironmentFile=-/etc/uzh-peer-probe/env
+ExecStart=/usr/local/bin/uzh-peer-oracle probe --config /etc/uzh-peer-probe.yml
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

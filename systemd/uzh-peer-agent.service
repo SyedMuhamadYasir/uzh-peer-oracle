@@ -1,0 +1,17 @@
+[Unit]
+Description=UZH Peer Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geth
+Group=geth
+EnvironmentFile=-/etc/uzh-peer-agent/env
+ExecStart=/usr/local/bin/uzh-peer-oracle agent --config /etc/uzh-peer-agent.yml
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

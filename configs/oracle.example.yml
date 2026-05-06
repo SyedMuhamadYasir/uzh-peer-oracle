@@ -1,0 +1,63 @@
+server:
+  listen: "0.0.0.0:8787"
+  public_url: "https://peer-oracle.example.uzh.ch"
+
+auth:
+  mode: "shared_token"
+  shared_token_env: "UZH_PEER_ORACLE_TOKEN"
+  tokens: []
+
+network:
+  expected_network_id: "702"
+  expected_chain_id: "0x2be"
+  expected_genesis_hash: ""
+  default_tcp_port: 30308
+  default_udp_port: 30308
+
+zones:
+  default_public_zone: "public"
+  university_cidrs:
+    - "130.60.0.0/16"
+    - "157.173.0.0/16"
+  private_zones:
+    - "uzh-vpn"
+    - "uzh-campus"
+    - "lab-a"
+  custom_zones: []
+
+seed:
+  path: "/etc/uzh-peer-oracle/peers.txt"
+  reload_interval_seconds: 30
+
+verification:
+  require_correct_network_id: true
+  require_correct_chain_id: true
+  require_genesis_hash_if_configured: true
+  require_tcp_reachable_for_public: true
+  allow_private_ips_only_in_private_zones: true
+  use_devp2p_if_available: true
+  tcp_timeout_seconds: 2
+  stale_after_seconds: 120
+  dead_after_seconds: 600
+
+selection:
+  default_target_peers: 12
+  max_peers_returned: 32
+  prefer_hubs: true
+  diversify_ips: true
+  diversify_subnets: true
+  rotate_results: true
+
+snapshot:
+  enabled: false
+  private_key_path: "./data/snapshot_ed25519.key"
+  publish_public_key: true
+
+storage:
+  driver: "sqlite"
+  sqlite_path: "./data/oracle.db"
+  postgres_dsn: ""
+
+metrics:
+  enabled: true
+  listen: "127.0.0.1:9797"

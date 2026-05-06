@@ -1,0 +1,11 @@
+# Public hub
+enode://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@130.60.24.247:30308 # name=hub-public-1 zone=public role=hub
+
+# Public ENR
+enr:-example-public-enr # name=hub-public-2 zone=public role=hub
+
+# UZH internal node
+enode://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@10.12.3.4:30308 # name=uzh-internal-1 zone=uzh-vpn role=internal
+
+# Lab-only miner
+enode://cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc@172.16.5.9:30308 # zone=lab-a role=miner visibility=private

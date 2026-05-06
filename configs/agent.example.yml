@@ -1,0 +1,34 @@
+agent:
+  node_name: "posexplorer"
+  role: "normal"
+  oracle_url: "http://127.0.0.1:8787"
+  token_env: "UZH_PEER_ORACLE_TOKEN"
+  heartbeat_interval_seconds: 15
+  peer_refresh_interval_seconds: 20
+  jitter_percent: 30
+  target_peers: 12
+  max_managed_peers: 24
+  dry_run: false
+
+geth:
+  ipc_path: "/home/yasir/uzhethereum/.uzhethereum/geth.ipc"
+  expected_network_id: "702"
+  expected_chain_id: "0x2be"
+  expected_genesis_hash: ""
+  public_ip: ""
+  p2p_tcp_port: 30308
+  p2p_udp_port: 30308
+
+zones:
+  hints: []
+  auto_detect: true
+
+safety:
+  never_remove_unmanaged_peers: true
+  require_public_enode_ip_for_public_zone: true
+  warn_if_enode_ip_mismatch: true
+  verify_signed_snapshots: true
+  oracle_snapshot_public_key: ""
+
+local_state:
+  path: "./data/agent-state.json"

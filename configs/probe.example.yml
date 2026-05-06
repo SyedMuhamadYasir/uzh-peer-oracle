@@ -1,0 +1,15 @@
+probe:
+  probe_id: "uzh-vpn-probe-1"
+  zone: "uzh-vpn"
+  oracle_url: "https://peer-oracle.example.uzh.ch"
+  token_env: "UZH_PEER_ORACLE_TOKEN"
+  interval_seconds: 30
+  jitter_percent: 30
+
+checks:
+  tcp: true
+  udp_hint: true
+  devp2p_v4: true
+  devp2p_v5: true
+  devp2p_path: "devp2p"
+  timeout_seconds: 3

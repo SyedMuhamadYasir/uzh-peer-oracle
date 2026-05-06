@@ -1,0 +1,21 @@
+[Unit]
+Description=UZH Peer Oracle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=uzh-peer-oracle
+Group=uzh-peer-oracle
+EnvironmentFile=-/etc/uzh-peer-oracle/env
+ExecStart=/usr/local/bin/uzh-peer-oracle server --config /etc/uzh-peer-oracle.yml --seed /etc/uzh-peer-oracle/peers.txt
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/uzh-peer-oracle
+
+[Install]
+WantedBy=multi-user.target
