@@ -1,0 +1,80 @@
+<svg width="1200" height="520" viewBox="0 0 1200 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">UZH Peer Oracle Treffpunkt architecture</title>
+  <desc id="desc">Animated diagram showing Geth agents heartbeating to an oracle and receiving peers for local admin_addPeer.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b1f1e"/>
+      <stop offset="48%" stop-color="#123936"/>
+      <stop offset="100%" stop-color="#203c2e"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" x2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity=".96"/>
+      <stop offset="100%" stop-color="#edf7f1" stop-opacity=".96"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000000" flood-opacity=".24"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#89d7bd"/>
+    </marker>
+    <style>
+      .small { font: 500 17px system-ui, -apple-system, Segoe UI, sans-serif; fill: #dbeee9; }
+      .label { font: 700 24px system-ui, -apple-system, Segoe UI, sans-serif; fill: #10201e; }
+      .sub { font: 500 15px system-ui, -apple-system, Segoe UI, sans-serif; fill: #425b54; }
+      .title { font: 800 42px system-ui, -apple-system, Segoe UI, sans-serif; fill: #ffffff; }
+      .line { stroke: #89d7bd; stroke-width: 4; stroke-linecap: round; marker-end: url(#arrow); opacity: .9; }
+      .pulse { animation: pulse 2.4s ease-in-out infinite; transform-origin: center; }
+      .packet { animation: move 3.2s linear infinite; }
+      .packet.two { animation-delay: .8s; }
+      .packet.three { animation-delay: 1.6s; }
+      @keyframes pulse { 0%,100% { opacity: .72; transform: scale(1); } 50% { opacity: 1; transform: scale(1.035); } }
+      @keyframes move { 0% { opacity: 0; transform: translateX(0); } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(260px); } }
+    </style>
+  </defs>
+  <rect width="1200" height="520" rx="28" fill="url(#bg)"/>
+  <text x="56" y="78" class="title">UZH Peer Oracle</text>
+  <text x="58" y="112" class="small">Topology-aware Treffpunkt for unmodified Geth teaching networks</text>
+
+  <g filter="url(#shadow)">
+    <rect x="72" y="180" width="250" height="130" rx="14" fill="url(#card)"/>
+    <text x="102" y="226" class="label">Geth node A</text>
+    <text x="102" y="256" class="sub">local IPC only</text>
+    <text x="102" y="282" class="sub">admin_nodeInfo</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="72" y="340" width="250" height="110" rx="14" fill="url(#card)"/>
+    <text x="102" y="386" class="label">Agent A</text>
+    <text x="102" y="416" class="sub">heartbeat + addPeer</text>
+  </g>
+  <g filter="url(#shadow)" class="pulse">
+    <rect x="475" y="210" width="250" height="150" rx="18" fill="#f7fff9"/>
+    <text x="520" y="264" class="label">Oracle</text>
+    <text x="520" y="294" class="sub">SQLite WAL registry</text>
+    <text x="520" y="320" class="sub">compatible peer matching</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="878" y="180" width="250" height="130" rx="14" fill="url(#card)"/>
+    <text x="908" y="226" class="label">Geth node B</text>
+    <text x="908" y="256" class="sub">P2P TCP 30308</text>
+    <text x="908" y="282" class="sub">Ethash / network 702</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="878" y="340" width="250" height="110" rx="14" fill="url(#card)"/>
+    <text x="908" y="386" class="label">Agent B</text>
+    <text x="908" y="416" class="sub">local admin_addPeer</text>
+  </g>
+
+  <path class="line" d="M322 395 C390 395 410 285 475 285"/>
+  <path class="line" d="M725 285 C790 285 810 395 878 395"/>
+  <path class="line" d="M878 238 C780 170 420 170 322 238"/>
+  <path class="line" d="M198 310 L198 340" marker-end="url(#arrow)"/>
+  <path class="line" d="M1003 340 L1003 310" marker-end="url(#arrow)"/>
+
+  <circle class="packet" cx="335" cy="386" r="8" fill="#ffffff"/>
+  <circle class="packet two" cx="735" cy="294" r="8" fill="#ffffff"/>
+  <circle class="packet three" cx="332" cy="230" r="8" fill="#ffffff"/>
+
+  <text x="392" y="430" class="small">heartbeat</text>
+  <text x="738" y="430" class="small">peer recommendation</text>
+  <text x="500" y="166" class="small">Geth P2P connection, no static-nodes.json</text>
+</svg>

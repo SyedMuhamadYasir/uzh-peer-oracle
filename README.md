@@ -1,64 +1,110 @@
-# UZH Peer Oracle
+<p align="center">
+  <img src="docs/assets/treffpunkt.svg" alt="UZH Peer Oracle animated architecture diagram" width="100%">
+</p>
 
-Milestone 1 MVP: a working topology-aware rendezvous engine for unmodified Geth `1.10.26` nodes on the UZH teaching testnet.
+<h1 align="center">UZH Peer Oracle</h1>
 
-This repository currently implements the core path:
+<p align="center">
+  <strong>A topology-aware peer Treffpunkt for unmodified Geth teaching networks.</strong>
+</p>
 
-```text
-oracle server + SQLite WAL + seed parser + heartbeat + peer endpoint
-local Geth IPC agent + admin_addPeer + managed local state
-```
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#two-node-smoke-test">Two-Node Smoke Test</a> ·
+  <a href="#what-works-now">What Works Now</a> ·
+  <a href="#roadmap">Roadmap</a>
+</p>
 
-It does not patch Geth, does not require a Geth upgrade, does not expose Geth admin RPC publicly, and does not create or edit `static-nodes.json`.
+---
 
-## Target Geth
+## What This Is
 
-```text
-Geth:        1.10.26-stable
-Git commit:  e5eb32acee19cc9fca6a03b10283b7484246b15a
-Network ID:  702
-Chain ID:    702 / 0x2be
-Consensus:   Ethash / PoW
-P2P TCP:     30308
-Discovery:   30308/udp
-IPC path:    ~/uzhethereum/.uzhethereum/geth.ipc
-```
+`uzh-peer-oracle` is a Go-first MVP for helping private Ethereum/Geth teaching nodes find peers they can actually reach.
+
+The oracle is a rendezvous service, not a blockchain and not a Geth fork. Each node runs a small local agent beside Geth. The agent reads local Geth state over IPC, heartbeats to the oracle, receives compatible peer recommendations, and then calls local `admin_addPeer`.
+
+That means:
+
+- no Geth patching;
+- no Geth upgrade;
+- no public Geth admin RPC;
+- no manual `static-nodes.json` maintenance;
+- dynamic peer exchange through local IPC.
+
+## Target Network
+
+| Field | Value |
+| --- | --- |
+| Geth | `1.10.26-stable` |
+| Commit | `e5eb32acee19cc9fca6a03b10283b7484246b15a` |
+| Network ID | `702` |
+| Chain ID | `702` / `0x2be` |
+| Consensus | Ethash / PoW |
+| P2P TCP | `30308` |
+| Discovery UDP | `30308` |
+| Typical datadir | `~/uzhethereum/.uzhethereum` |
+| Typical IPC | `~/uzhethereum/.uzhethereum/geth.ipc` |
 
 ## What Works Now
 
-- `uzh-peer-oracle server` starts an HTTP server.
-- SQLite WAL storage is enabled by default.
-- Seed ingestion accepts `enode://` and `enr:` lines.
-- Inline seed metadata works: `name=... zone=... role=...`.
-- Bad seed lines are reported and do not crash ingestion.
-- `GET /health` works without auth.
-- `POST /v1/heartbeat` works with bearer-token auth.
-- `GET /v1/peers` returns compatible peer recommendations.
-- `GET /v1/debug/nodes` returns registered nodes with bearer-token auth.
-- `uzh-peer-oracle diagnose` talks to local Geth IPC.
-- `uzh-peer-oracle agent` reads local Geth IPC, heartbeats, fetches peers, calls local `admin_addPeer`, and writes managed peer state.
-- Tests cover seed parsing, server API, peer selection, and fake/mock Geth IPC.
+This repository currently implements **Milestone 1**, the working engine:
 
-## Build
+- `uzh-peer-oracle server` starts an HTTP oracle.
+- SQLite WAL storage works.
+- Seed file ingestion supports `enode://` and `enr:` lines.
+- Inline metadata works: `name=... zone=... role=...`.
+- Bad seed lines are reported without crashing.
+- Bearer-token auth works.
+- `GET /health` works.
+- `POST /v1/heartbeat` works.
+- `GET /v1/peers` works.
+- `GET /v1/debug/nodes` works.
+- `uzh-peer-oracle diagnose` talks to local Geth IPC.
+- `uzh-peer-oracle agent` reads Geth IPC, heartbeats, fetches peers, calls `admin_addPeer`, and stores managed peer state.
+- The agent never creates or edits `static-nodes.json`.
+- Tests cover seed parsing, server API, peer selection, and fake Geth IPC.
+
+## Quick Start
+
+These commands assume WSL/Linux.
 
 ```bash
 cd "/mnt/d/Download/Academic Stuff/PhD/Codex Projects/uzh-peer-oracle"
+```
+
+Install/check Go:
+
+```bash
+go version
+```
+
+If Go is missing:
+
+```bash
+sudo apt update
+sudo apt install golang-go
+```
+
+Build:
+
+```bash
 go mod tidy
 go test ./...
 make build
 ```
 
-The binary will be written to:
-
-```text
-bin/uzh-peer-oracle
-```
-
-## Server Start
-
-Use a long random token. For local smoke testing:
+The binary will be:
 
 ```bash
+./bin/uzh-peer-oracle
+```
+
+## Run The Oracle
+
+Terminal 1:
+
+```bash
+cd "/mnt/d/Download/Academic Stuff/PhD/Codex Projects/uzh-peer-oracle"
 export UZH_PEER_ORACLE_TOKEN="dev-change-me"
 
 ./bin/uzh-peer-oracle server \
@@ -72,25 +118,156 @@ Health check:
 curl http://127.0.0.1:8787/health
 ```
 
-Debug registered nodes:
+Show registered nodes:
 
 ```bash
 curl -H "Authorization: Bearer $UZH_PEER_ORACLE_TOKEN" \
   http://127.0.0.1:8787/v1/debug/nodes
 ```
 
-## Seed File
+## Run The Agent
 
-Example:
+Edit the agent config:
+
+```bash
+nano configs/agent.example.yml
+```
+
+Set the Geth IPC path:
+
+```yaml
+geth:
+  ipc_path: "/home/yasir/uzhethereum/.uzhethereum/geth.ipc"
+```
+
+Keep the oracle URL local for a same-machine smoke test:
+
+```yaml
+agent:
+  oracle_url: "http://127.0.0.1:8787"
+```
+
+Diagnose local Geth IPC:
+
+```bash
+export UZH_PEER_ORACLE_TOKEN="dev-change-me"
+
+./bin/uzh-peer-oracle diagnose \
+  --config configs/agent.example.yml
+```
+
+Run the agent:
+
+```bash
+./bin/uzh-peer-oracle agent \
+  --config configs/agent.example.yml
+```
+
+The agent will:
+
+1. call local Geth IPC methods;
+2. heartbeat to the oracle;
+3. fetch recommended peers;
+4. skip itself and already-connected peers;
+5. call `admin_addPeer(enode)` locally;
+6. store managed state in `./data/agent-state.json`.
+
+## Two-Node Smoke Test
+
+You need two running Geth nodes, each with its own IPC path.
+
+Create two agent configs:
+
+```bash
+cp configs/agent.example.yml configs/agent.node-a.yml
+cp configs/agent.example.yml configs/agent.node-b.yml
+```
+
+Edit node A:
+
+```bash
+nano configs/agent.node-a.yml
+```
+
+Set:
+
+```yaml
+agent:
+  node_name: "node-a"
+  oracle_url: "http://127.0.0.1:8787"
+
+geth:
+  ipc_path: "/path/to/node-a/geth.ipc"
+```
+
+Edit node B:
+
+```bash
+nano configs/agent.node-b.yml
+```
+
+Set:
+
+```yaml
+agent:
+  node_name: "node-b"
+  oracle_url: "http://127.0.0.1:8787"
+
+geth:
+  ipc_path: "/path/to/node-b/geth.ipc"
+```
+
+Run both agents:
+
+```bash
+./bin/uzh-peer-oracle agent --config configs/agent.node-a.yml
+```
+
+```bash
+./bin/uzh-peer-oracle agent --config configs/agent.node-b.yml
+```
+
+Check the oracle:
+
+```bash
+curl -H "Authorization: Bearer $UZH_PEER_ORACLE_TOKEN" \
+  http://127.0.0.1:8787/v1/debug/nodes
+```
+
+Check Geth peer count:
+
+```bash
+geth attach /path/to/node-a/geth.ipc --exec 'net.peerCount'
+geth attach /path/to/node-b/geth.ipc --exec 'net.peerCount'
+```
+
+Confirm no static node file was created:
+
+```bash
+find ~/uzhethereum/.uzhethereum -name static-nodes.json -print
+```
+
+Expected result: both compatible nodes discover each other through the oracle and connect through local `admin_addPeer`.
+
+## Seed File Format
+
+Plain enodes:
 
 ```text
-# Public hub
+enode://abc...@130.60.24.247:30308
+```
+
+ENRs:
+
+```text
+enr:...
+```
+
+Inline metadata:
+
+```text
 enode://abc...@130.60.24.247:30308 # name=hub-public-1 zone=public role=hub
-
-# Public ENR
 enr:... # name=hub-public-2 zone=public role=hub
-
-# UZH VPN/internal
 enode://def...@10.12.3.4:30308 # name=uzh-internal-1 zone=uzh-vpn role=internal
 ```
 
@@ -102,100 +279,29 @@ Manual ingestion:
   --seed configs/peers.example.txt
 ```
 
-## Agent Diagnose
+## API In Milestone 1
 
-Edit `configs/agent.example.yml` so `geth.ipc_path` points to your real Geth IPC socket.
+Unauthenticated:
 
-Then run:
-
-```bash
-export UZH_PEER_ORACLE_TOKEN="dev-change-me"
-
-./bin/uzh-peer-oracle diagnose \
-  --config configs/agent.example.yml
+```text
+GET /health
 ```
 
-This calls local IPC methods such as:
+Authenticated:
 
-- `admin_nodeInfo`
-- `admin_peers`
-- `net_version`
-- `net_peerCount`
-- `eth_chainId`
-- `eth_blockNumber`
-- `eth_getBlockByNumber`
-- `web3_clientVersion`
-
-## Agent Run
-
-```bash
-export UZH_PEER_ORACLE_TOKEN="dev-change-me"
-
-./bin/uzh-peer-oracle agent \
-  --config configs/agent.example.yml
+```text
+POST /v1/heartbeat
+GET  /v1/peers?node_id=...&limit=...
+GET  /v1/debug/nodes
 ```
 
-The agent:
+Authentication:
 
-- reads local Geth identity and peer state over IPC;
-- heartbeats to the oracle;
-- fetches recommendations from `/v1/peers`;
-- skips itself and already-connected peers;
-- calls `admin_addPeer(enode)` over local IPC;
-- waits briefly and checks `admin_peers`;
-- records managed peers in `./data/agent-state.json`;
-- never edits `static-nodes.json`;
-- never requires public admin RPC.
-
-## Exact Two-Node Smoke Test
-
-Terminal 1, start oracle:
-
-```bash
-cd "/mnt/d/Download/Academic Stuff/PhD/Codex Projects/uzh-peer-oracle"
-export UZH_PEER_ORACLE_TOKEN="dev-change-me"
-./bin/uzh-peer-oracle server --config configs/oracle.example.yml
+```http
+Authorization: Bearer <UZH_PEER_ORACLE_TOKEN>
 ```
 
-Terminal 2, on Geth node A:
-
-```bash
-export UZH_PEER_ORACLE_TOKEN="dev-change-me"
-./bin/uzh-peer-oracle diagnose --config configs/agent.node-a.yml
-./bin/uzh-peer-oracle agent --config configs/agent.node-a.yml
-```
-
-Terminal 3, on Geth node B:
-
-```bash
-export UZH_PEER_ORACLE_TOKEN="dev-change-me"
-./bin/uzh-peer-oracle diagnose --config configs/agent.node-b.yml
-./bin/uzh-peer-oracle agent --config configs/agent.node-b.yml
-```
-
-Check the oracle sees both:
-
-```bash
-curl -H "Authorization: Bearer $UZH_PEER_ORACLE_TOKEN" \
-  http://127.0.0.1:8787/v1/debug/nodes
-```
-
-Check Geth peer counts rise on both nodes:
-
-```bash
-geth attach ~/uzhethereum/.uzhethereum/geth.ipc --exec 'net.peerCount'
-geth attach ~/uzhethereum/.uzhethereum/geth.ipc --exec 'admin.peers.length'
-```
-
-Confirm no static node file was created or changed:
-
-```bash
-find ~/uzhethereum/.uzhethereum -name static-nodes.json -print
-```
-
-The expected Milestone 1 result is that two compatible public nodes discover each other via the oracle and connect through local `admin_addPeer`.
-
-## Recommended Geth Flags
+## Geth Flags
 
 For public nodes:
 
@@ -218,54 +324,32 @@ PUBLIC_IP=<public ip>
   --authrpc.port 8553
 ```
 
-For Geth `1.10.26`, the discovery v5 flag is `--v5disc`, not `--discv5`.
+For Geth `1.10.26`, the flag is `--v5disc`, not `--discv5`.
 
-## API In Milestone 1
+## Roadmap
 
-Unauthenticated:
+Milestone 1 is the current supported MVP.
 
-- `GET /health`
+| Milestone | Status | Scope |
+| --- | --- | --- |
+| 1 | Working MVP | server, SQLite, seed parser, heartbeat, peers endpoint, debug nodes, Geth IPC agent, `admin_addPeer` |
+| 2 | Future | zones, private/public policy, peer reports, reachability graph, probe agent |
+| 3 | Future | signed snapshots, dashboard, metrics, load testing |
+| 4 | Future | bootnode exports, DNS discovery, devp2p helpers |
 
-Authenticated:
-
-- `POST /v1/heartbeat`
-- `GET /v1/peers?node_id=...&limit=...`
-- `GET /v1/debug/nodes`
-
-The bearer token is read from `UZH_PEER_ORACLE_TOKEN` by default.
-
-## What Remains For Milestones 2-4
-
-Milestone 2:
-
-- richer zone policy;
-- private/public leakage hardening;
-- peer reports;
-- reachability graph;
-- probe/sentinel agent.
-
-Milestone 3:
-
-- signed snapshots;
-- dashboard;
-- metrics;
-- 200-agent load test.
-
-Milestone 4:
-
-- bootnode exports;
-- DNS discovery material;
-- optional devp2p integration.
-
-Some placeholder packages and documents already exist for these later milestones, but the active supported MVP is Milestone 1.
+Some placeholder packages and roadmap docs already exist, but they are intentionally not part of the active Milestone 1 command surface.
 
 ## Troubleshooting
 
-| Problem | Cause | Fix |
+| Problem | Likely Cause | Fix |
 | --- | --- | --- |
-| Agent cannot connect to IPC. | Wrong datadir or permissions. | Check `geth.ipc` path and user. |
-| Heartbeat rejected wrong `network_id`. | Geth is on the wrong network. | Check `--networkid 702`. |
-| Heartbeat rejected wrong `chain_id`. | Genesis config chain ID mismatch. | Check genesis `chainId` is `702` / `0x2be`. |
-| Enode advertises `127.0.0.1` for a public node. | NAT advertisement is wrong. | Start Geth with `--nat extip:PUBLIC_IP`. |
-| TCP unreachable. | Firewall/security group blocks P2P. | Open `30308/tcp`. |
-| `admin_addPeer` returns true but peer count stays low. | Wrong chain, incompatible caps, firewall, or remote rejection. | Check Geth logs and `admin.peers`. |
+| Agent cannot connect to IPC | Wrong path or permissions | Check `geth.ipc` path and user |
+| Heartbeat rejected wrong `network_id` | Geth started on the wrong network | Use `--networkid 702` |
+| Heartbeat rejected wrong `chain_id` | Genesis mismatch | Check chain ID is `702` / `0x2be` |
+| Public enode advertises `127.0.0.1` | NAT advertisement is wrong | Use `--nat extip:PUBLIC_IP` |
+| Peer count does not rise | Firewall, wrong chain, or remote rejection | Check Geth logs and `admin.peers` |
+| UDP discovery broken | UDP blocked or noisy | Oracle peering still works through TCP `admin_addPeer` |
+
+## Safety Promise
+
+The Milestone 1 agent only talks to local Geth IPC and writes its own managed state file. It does not edit your Geth datadir, does not create `static-nodes.json`, and does not expose admin RPC.
