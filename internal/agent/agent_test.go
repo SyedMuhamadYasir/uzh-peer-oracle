@@ -147,3 +147,57 @@ func TestManagedPeerReplacementOnlyRemovesManagedPeers(t *testing.T) {
 		t.Fatal("managed peer should have been removed from state")
 	}
 }
+
+func TestRunnerRunOnceExits(t *testing.T) {
+	token := "test-token"
+	callCount := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		callCount++
+		switch r.URL.Path {
+		case "/v1/heartbeat":
+			_ = json.NewEncoder(w).Encode(oracle.HeartbeatResponse{Accepted: true, Status: "verified", EffectiveZones: []string{"public"}, Score: 9})
+		case "/v1/peers":
+			_ = json.NewEncoder(w).Encode(oracle.PeersResponse{Peers: nil})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	cfg := config.Defaults()
+	cfg.Agent.OracleURL = ts.URL
+	cfg.LocalState.Path = t.TempDir() + "/agent-state.json"
+	runner := &Runner{
+		cfg:    cfg,
+		geth:   &mockGeth{},
+		http:   ts.Client(),
+		state:  &State{ManagedPeers: map[string]*ManagedPeer{}},
+		logger: log.New(),
+		token:  token,
+		collectHeartbeat: func(ctx context.Context) (*oracle.HeartbeatRequest, []gethclient.Peer, error) {
+			return &oracle.HeartbeatRequest{
+				NodeName:  "node-a",
+				NodeID:    strings.Repeat("a", 128),
+				Enode:     "enode://" + strings.Repeat("a", 128) + "@157.173.125.128:30303",
+				IP:        "157.173.125.128",
+				TCPPort:   30303,
+				UDPPort:   30303,
+				Zones:     []string{"public"},
+				NetworkID: "702",
+				ChainID:   "0x2be",
+			}, nil, nil
+		},
+		sleep: func(time.Duration) {},
+		now:   time.Now,
+	}
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected exactly heartbeat + peers calls, got %d", callCount)
+	}
+}

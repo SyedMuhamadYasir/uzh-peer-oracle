@@ -101,6 +101,14 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
+func (r *Runner) RunOnce(ctx context.Context) error {
+	r.logger.Info("agent one-shot started", map[string]any{"oracle": r.cfg.Agent.OracleURL, "ipc": r.cfg.Geth.IPCPath})
+	if err := r.Cycle(ctx); err != nil {
+		return err
+	}
+	return r.state.Save(r.cfg.LocalState.Path)
+}
+
 func (r *Runner) Cycle(ctx context.Context) error {
 	cycleCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()

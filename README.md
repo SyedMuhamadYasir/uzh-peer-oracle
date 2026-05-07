@@ -94,6 +94,31 @@ Useful commands:
 ./bin/uzh-peer-oracle explain-peer-failure --config configs/oracle.example.yml --node-id A --target-node-id B
 ```
 
+## Running on Contabo UZHETHPOW
+
+For the live Contabo full node, use the Contabo-specific files in this repo:
+
+- public IP: `157.173.125.128`
+- Geth IPC path: `/home/ethereum/uzhethereum/blockchain/geth.ipc`
+- Geth P2P port: `30303`
+- reth occupies `30308`
+- local oracle URL: `http://127.0.0.1:8787`
+- live runbook: [docs/CONTABO_UZHETHPOW_LIVE_TEST.md](/mnt/d/Download/Academic%20Stuff/PhD/Codex%20Projects/uzh-peer-oracle/docs/CONTABO_UZHETHPOW_LIVE_TEST.md)
+
+Contabo files:
+
+- `configs/uzhethpow.contabo.oracle.yml`
+- `configs/uzhethpow.contabo.agent.yml`
+- `configs/uzhethpow.contabo.peers.txt`
+
+Useful live-run commands:
+
+```bash
+./bin/uzh-peer-oracle contabo-doctor --config configs/uzhethpow.contabo.agent.yml
+./bin/uzh-peer-oracle agent --config configs/uzhethpow.contabo.agent.yml --once
+./scripts/contabo_peer_perf.sh 120 5
+```
+
 ## Quick Start
 
 These commands assume WSL/Linux.

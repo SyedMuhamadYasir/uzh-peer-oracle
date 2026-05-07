@@ -1,0 +1,44 @@
+agent:
+  node_name: "contabo-157-173-125-128"
+  role: "hub"
+  oracle_url: "http://127.0.0.1:8787"
+  token_env: "UZH_PEER_ORACLE_TOKEN"
+  heartbeat_interval_seconds: 15
+  peer_refresh_interval_seconds: 20
+  jitter_percent: 30
+  target_peers: 8
+  max_managed_peers: 16
+  dry_run: false
+
+geth:
+  ipc_path: "/home/ethereum/uzhethereum/blockchain/geth.ipc"
+  expected_network_id: "702"
+  expected_chain_id: "0x2be"
+  expected_genesis_hash: ""
+  public_ip: "157.173.125.128"
+  p2p_tcp_port: 30303
+  p2p_udp_port: 30303
+
+zones:
+  hints:
+    - "public"
+  auto_detect: true
+
+safety:
+  never_remove_unmanaged_peers: true
+  require_public_enode_ip_for_public_zone: true
+  warn_if_enode_ip_mismatch: true
+  verify_signed_snapshots: false
+  oracle_snapshot_public_key: ""
+
+local_state:
+  path: "./data/uzhethpow-contabo-agent-state.json"
+
+wire_probe:
+  enabled: true
+  tcp_check: true
+  discovery_check: true
+  rlpx_check: true
+  eth_status_check: false
+  timeout_seconds: 5
+  max_parallel: 4

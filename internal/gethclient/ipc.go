@@ -41,21 +41,21 @@ type rpcError struct {
 }
 
 type NodeInfo struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Enode     string         `json:"enode"`
-	ENR       string         `json:"enr"`
-	IP        string         `json:"ip"`
-	Ports     map[string]int `json:"ports"`
-	ListenAddr string        `json:"listenAddr"`
+	ID         string         `json:"id"`
+	Name       string         `json:"name"`
+	Enode      string         `json:"enode"`
+	ENR        string         `json:"enr"`
+	IP         string         `json:"ip"`
+	Ports      map[string]int `json:"ports"`
+	ListenAddr string         `json:"listenAddr"`
 }
 
 type Peer struct {
-	ID       string         `json:"id"`
-	Name     string         `json:"name"`
-	Enode    string         `json:"enode"`
-	Caps     []string       `json:"caps"`
-	Network  PeerNetwork    `json:"network"`
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Enode     string         `json:"enode"`
+	Caps      []string       `json:"caps"`
+	Network   PeerNetwork    `json:"network"`
 	Protocols map[string]any `json:"protocols"`
 }
 
@@ -65,6 +65,11 @@ type PeerNetwork struct {
 	Inbound       bool   `json:"inbound"`
 	Trusted       bool   `json:"trusted"`
 	Static        bool   `json:"static"`
+}
+
+type SyncingStatus struct {
+	Syncing bool           `json:"syncing"`
+	State   map[string]any `json:"state,omitempty"`
 }
 
 func New(ipcPath string) *Client {
@@ -172,6 +177,22 @@ func (c *Client) ClientVersion(ctx context.Context) (string, error) {
 	var out string
 	err := c.Call(ctx, "web3_clientVersion", []any{}, &out)
 	return out, err
+}
+
+func (c *Client) Syncing(ctx context.Context) (*SyncingStatus, error) {
+	var raw json.RawMessage
+	if err := c.Call(ctx, "eth_syncing", []any{}, &raw); err != nil {
+		return nil, err
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" || trimmed == "false" {
+		return &SyncingStatus{Syncing: false}, nil
+	}
+	var state map[string]any
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return &SyncingStatus{Syncing: true}, nil
+	}
+	return &SyncingStatus{Syncing: true, State: state}, nil
 }
 
 func (c *Client) GenesisHash(ctx context.Context) (string, error) {
