@@ -58,6 +58,36 @@ type PeerRecommendation struct {
 	LastSeen               time.Time `json:"last_seen"`
 }
 
+type WireProbeResult struct {
+	ID              int64     `json:"id,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	Enode           string    `json:"enode,omitempty"`
+	ENR             string    `json:"enr,omitempty"`
+	IP              string    `json:"ip,omitempty"`
+	TCPPort         int       `json:"tcp_port,omitempty"`
+	UDPPort         int       `json:"udp_port,omitempty"`
+	CheckedAt       time.Time `json:"checked_at"`
+	IPClass         string    `json:"ip_class,omitempty"`
+	ParseOK         bool      `json:"parse_ok"`
+	ParseStatus     string    `json:"parse_status,omitempty"`
+	TCPOK           bool      `json:"tcp_ok"`
+	TCPLatencyMS    int64     `json:"tcp_latency_ms,omitempty"`
+	TCPStatus       string    `json:"tcp_status,omitempty"`
+	Discv4OK        bool      `json:"discv4_ok"`
+	Discv4Status    string    `json:"discv4_status,omitempty"`
+	Discv5OK        bool      `json:"discv5_ok"`
+	Discv5Status    string    `json:"discv5_status,omitempty"`
+	RLPxOK          bool      `json:"rlpx_ok"`
+	RLPxStatus      string    `json:"rlpx_status,omitempty"`
+	EthStatusOK     bool      `json:"eth_status_ok"`
+	EthStatusStatus string    `json:"eth_status_status,omitempty"`
+	RemoteNodeID    string    `json:"remote_node_id,omitempty"`
+	Caps            []string  `json:"caps,omitempty"`
+	NetworkID       string    `json:"network_id,omitempty"`
+	GenesisHash     string    `json:"genesis_hash,omitempty"`
+	Error           string    `json:"error,omitempty"`
+}
+
 type PeersResponse struct {
 	SnapshotHash string               `json:"snapshot_hash"`
 	Signature    string               `json:"signature"`
@@ -65,17 +95,17 @@ type PeersResponse struct {
 }
 
 type PeerReportRequest struct {
-	FromNodeID             string    `json:"from_node_id"`
-	ToNodeID               string    `json:"to_node_id"`
-	ToEnode                string    `json:"to_enode"`
-	AttemptedAt            time.Time `json:"attempted_at"`
-	AdminAddPeerResult     bool      `json:"admin_add_peer_result"`
-	ConnectedAfterSeconds  bool      `json:"connected_after_seconds"`
-	ObservedInAdminPeers   bool      `json:"observed_in_admin_peers"`
-	RemoteAddress          string    `json:"remote_address"`
-	Caps                   []string  `json:"caps"`
-	EthProtocolPresent     bool      `json:"eth_protocol_present"`
-	Error                  string    `json:"error"`
+	FromNodeID            string    `json:"from_node_id"`
+	ToNodeID              string    `json:"to_node_id"`
+	ToEnode               string    `json:"to_enode"`
+	AttemptedAt           time.Time `json:"attempted_at"`
+	AdminAddPeerResult    bool      `json:"admin_add_peer_result"`
+	ConnectedAfterSeconds bool      `json:"connected_after_seconds"`
+	ObservedInAdminPeers  bool      `json:"observed_in_admin_peers"`
+	RemoteAddress         string    `json:"remote_address"`
+	Caps                  []string  `json:"caps"`
+	EthProtocolPresent    bool      `json:"eth_protocol_present"`
+	Error                 string    `json:"error"`
 }
 
 type ProbeReportRequest struct {
@@ -85,14 +115,14 @@ type ProbeReportRequest struct {
 }
 
 type ProbeObservation struct {
-	NodeID      string `json:"node_id"`
-	Enode       string `json:"enode"`
+	NodeID       string `json:"node_id"`
+	Enode        string `json:"enode"`
 	TCPReachable bool   `json:"tcp_reachable"`
-	UDPSeen     bool   `json:"udp_seen"`
-	DevP2PV4OK  bool   `json:"devp2p_v4_ok"`
-	DevP2PV5OK  bool   `json:"devp2p_v5_ok"`
-	LatencyMS   int64  `json:"latency_ms"`
-	Error       string `json:"error"`
+	UDPSeen      bool   `json:"udp_seen"`
+	DevP2PV4OK   bool   `json:"devp2p_v4_ok"`
+	DevP2PV5OK   bool   `json:"devp2p_v5_ok"`
+	LatencyMS    int64  `json:"latency_ms"`
+	Error        string `json:"error"`
 }
 
 type ReachabilityEdge struct {
@@ -109,8 +139,8 @@ type ReachabilityEdge struct {
 }
 
 type DebugGraph struct {
-	Nodes []*Node             `json:"nodes"`
-	Edges []ReachabilityEdge  `json:"edges"`
+	Nodes []*Node            `json:"nodes"`
+	Edges []ReachabilityEdge `json:"edges"`
 }
 
 func (n *Node) HasZone(zone string) bool {

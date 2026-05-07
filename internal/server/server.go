@@ -24,6 +24,7 @@ import (
 	"github.com/uzh/uzh-peer-oracle/internal/oracle"
 	"github.com/uzh/uzh-peer-oracle/internal/seed"
 	"github.com/uzh/uzh-peer-oracle/internal/snapshot"
+	"github.com/uzh/uzh-peer-oracle/internal/wireprobe"
 )
 
 type App struct {
@@ -36,6 +37,8 @@ type App struct {
 	mu        sync.Mutex
 	metrics   Metrics
 	limiters  map[string]*limiter
+	prober    *wireprobe.Prober
+	probeSem  chan struct{}
 }
 
 type Metrics struct {
@@ -50,10 +53,10 @@ type Metrics struct {
 }
 
 type AuthContext struct {
-	Name         string
-	AllowedZones []string
+	Name          string
+	AllowedZones  []string
 	ExplicitZones bool
-	Role         string
+	Role          string
 }
 
 func New(ctx context.Context, cfg *config.Config, logger *log.Logger) (*App, error) {
@@ -76,6 +79,8 @@ func New(ctx context.Context, cfg *config.Config, logger *log.Logger) (*App, err
 		keypair:   kp,
 		startedAt: time.Now().UTC(),
 		limiters:  map[string]*limiter{},
+		prober:    wireprobe.New(cfg.WireProbe),
+		probeSem:  make(chan struct{}, cfg.WireProbe.MaxParallel),
 	}, nil
 }
 
@@ -86,9 +91,23 @@ func (a *App) Close() error {
 func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", a.handleHealth)
+	mux.HandleFunc("/metrics", a.localOrAuthHTTP(a.handleMetrics))
+	mux.HandleFunc("/", a.localOrAuthHTTP(a.handleDashboard))
+	mux.HandleFunc("/dashboard", a.localOrAuthHTTP(a.handleDashboard))
 	mux.HandleFunc("/v1/heartbeat", a.withAuth(a.handleHeartbeat))
 	mux.HandleFunc("/v1/peers", a.withAuth(a.handlePeers))
+	mux.HandleFunc("/v1/peer-report", a.withAuth(a.handlePeerReport))
+	mux.HandleFunc("/v1/probe-report", a.withAuth(a.handleProbeReport))
 	mux.HandleFunc("/v1/debug/nodes", a.withAuth(a.handleDebugNodes))
+	mux.HandleFunc("/v1/debug/graph", a.withAuth(a.handleDebugGraph))
+	mux.HandleFunc("/v1/debug/zones", a.withAuth(a.handleDebugZones))
+	mux.HandleFunc("/v1/bootnodes/enodes", a.withAuthHTTP(a.handleBootnodeEnodes))
+	mux.HandleFunc("/v1/bootnodes/enrs", a.withAuthHTTP(a.handleBootnodeENRs))
+	mux.HandleFunc("/v1/bootnodes/toml", a.withAuthHTTP(a.handleBootnodeTOML))
+	mux.HandleFunc("/v1/dns/nodes.json", a.withAuthHTTP(a.handleDNSNodes))
+	mux.HandleFunc("/v1/snapshot/latest", a.withAuthHTTP(a.handleSnapshotLatest))
+	mux.HandleFunc("/v1/snapshot/public", a.withAuthHTTP(a.handleSnapshotPublic))
+	mux.HandleFunc("/v1/snapshot/zone/", a.withAuthHTTP(a.handleSnapshotZone))
 	return http.TimeoutHandler(http.MaxBytesHandler(a.rateLimit(mux), 1<<20), 15*time.Second, `{"error":"request timeout"}`)
 }
 
@@ -128,6 +147,7 @@ func (a *App) IngestSeedFile(ctx context.Context, path string) (*seed.Result, er
 		if err := a.store.UpsertNode(ctx, p); err != nil {
 			return nil, err
 		}
+		a.enqueueWireProbe(ctx, p)
 	}
 	a.store.AddAudit(ctx, "seed_ingest", map[string]any{"path": path, "peers": len(res.Peers), "errors": res.Errors})
 	a.logger.Info("seed file ingested", map[string]any{"path": path, "peers": len(res.Peers), "errors": len(res.Errors)})
@@ -173,6 +193,7 @@ func (a *App) handleHeartbeat(w http.ResponseWriter, r *http.Request, auth AuthC
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	a.enqueueWireProbe(r.Context(), &hb)
 	a.metrics.Heartbeats++
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -287,7 +308,12 @@ func (a *App) handlePeers(w http.ResponseWriter, r *http.Request, auth AuthConte
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	recs := matcher.Select(matcher.Request{Requester: requester, EffectiveZones: effective, Limit: limit, Now: time.Now().UTC()}, nodes, edges, a.cfg)
+	probes, err := a.store.LatestWireProbeResults(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	recs := matcher.Select(matcher.Request{Requester: requester, EffectiveZones: effective, LatestProbes: probes, Limit: limit, Now: time.Now().UTC()}, nodes, edges, a.cfg)
 	snap, _, err := a.createSnapshot(r.Context(), "response", effective, recs, edges)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -457,7 +483,12 @@ func (a *App) serveSnapshot(w http.ResponseWriter, r *http.Request, zone string,
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	recs := matcher.Select(matcher.Request{EffectiveZones: zones, Limit: a.cfg.Selection.MaxPeersReturned, Now: time.Now().UTC()}, nodes, edges, a.cfg)
+	probes, err := a.store.LatestWireProbeResults(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	recs := matcher.Select(matcher.Request{EffectiveZones: zones, LatestProbes: probes, Limit: a.cfg.Selection.MaxPeersReturned, Now: time.Now().UTC()}, nodes, edges, a.cfg)
 	_, raw, err := a.createSnapshot(r.Context(), zone, zones, recs, edges)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -602,8 +633,8 @@ func (a *App) createSnapshot(ctx context.Context, zone string, zones []string, r
 		ReachabilitySummary:  edges,
 		PreviousSnapshotHash: prev,
 		PrivateKey:           a.keypair.Private,
-		PublicKeyHex:          uzhcrypto.PublicKeyHex(a.keypair.Public),
-		PublishPublicKey:      a.cfg.Snapshot.PublishPublicKey,
+		PublicKeyHex:         uzhcrypto.PublicKeyHex(a.keypair.Public),
+		PublishPublicKey:     a.cfg.Snapshot.PublishPublicKey,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -648,6 +679,30 @@ func (a *App) withAuth(next func(http.ResponseWriter, *http.Request, AuthContext
 			return
 		}
 		next(w, r, auth)
+	}
+}
+
+func (a *App) withAuthHTTP(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := a.authenticate(r); !ok {
+			writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (a *App) localOrAuthHTTP(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if isLocalClient(r) {
+			next(w, r)
+			return
+		}
+		if _, ok := a.authenticate(r); !ok {
+			writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+			return
+		}
+		next(w, r)
 	}
 }
 
@@ -797,6 +852,11 @@ func clientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
+func isLocalClient(r *http.Request) bool {
+	ip := net.ParseIP(clientIP(r))
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate())
+}
+
 func isPrivateSource(ipText string) bool {
 	ip := net.ParseIP(ipText)
 	return ip != nil && (ip.IsPrivate() || ip.IsLoopback())
@@ -864,6 +924,32 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (a *App) enqueueWireProbe(ctx context.Context, node *oracle.Node) {
+	if node == nil || !a.cfg.WireProbe.Enabled {
+		return
+	}
+	if strings.TrimSpace(node.Enode) == "" && strings.TrimSpace(node.ENR) == "" {
+		return
+	}
+	select {
+	case a.probeSem <- struct{}{}:
+	default:
+		a.logger.Warn("wire probe queue full", map[string]any{"node_id": node.NodeID})
+		return
+	}
+	nodeCopy := *node
+	go func() {
+		defer func() { <-a.probeSem }()
+		timeout := config.DurationSeconds(a.cfg.WireProbe.TimeoutSeconds, 5*time.Second)
+		probeCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		result := a.prober.ProbeNode(probeCtx, nodeCopy.NodeID, nodeCopy.Enode, nodeCopy.ENR)
+		if err := a.store.SaveWireProbeResult(context.Background(), result); err != nil {
+			a.logger.Warn("wire probe persistence failed", map[string]any{"node_id": nodeCopy.NodeID, "err": err.Error()})
+		}
+	}()
 }
 
 func shortID(id string) string {

@@ -14,6 +14,15 @@ network:
   default_tcp_port: 30308
   default_udp_port: 30308
 
+wire_probe:
+  enabled: true
+  tcp_check: true
+  discovery_check: true
+  rlpx_check: true
+  eth_status_check: false
+  timeout_seconds: 5
+  max_parallel: 16
+
 zones:
   default_public_zone: "public"
   university_cidrs:

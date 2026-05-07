@@ -17,13 +17,22 @@ import (
 	"github.com/uzh/uzh-peer-oracle/internal/oracle"
 )
 
+type localGeth interface {
+	AddPeer(ctx context.Context, enode string) (bool, error)
+	AdminPeers(ctx context.Context) ([]gethclient.Peer, error)
+	RemovePeer(ctx context.Context, enode string) (bool, error)
+}
+
 type Runner struct {
-	cfg    *config.Config
-	geth   *gethclient.Client
-	http   *http.Client
-	state  *State
-	logger *log.Logger
-	token  string
+	cfg              *config.Config
+	geth             localGeth
+	http             *http.Client
+	state            *State
+	logger           *log.Logger
+	token            string
+	collectHeartbeat func(context.Context) (*oracle.HeartbeatRequest, []gethclient.Peer, error)
+	sleep            func(time.Duration)
+	now              func() time.Time
 }
 
 func New(cfg *config.Config, logger *log.Logger) (*Runner, error) {
@@ -42,11 +51,16 @@ func New(cfg *config.Config, logger *log.Logger) (*Runner, error) {
 		state:  st,
 		logger: logger,
 		token:  token,
+		collectHeartbeat: func(ctx context.Context) (*oracle.HeartbeatRequest, []gethclient.Peer, error) {
+			return gethclient.CollectHeartbeat(ctx, gethclient.New(cfg.Geth.IPCPath), cfg)
+		},
+		sleep: time.Sleep,
+		now:   time.Now,
 	}, nil
 }
 
 func (r *Runner) Diagnose(ctx context.Context) error {
-	hb, peers, err := gethclient.CollectHeartbeat(ctx, r.geth, r.cfg)
+	hb, peers, err := r.collectHeartbeat(ctx)
 	if err != nil {
 		return err
 	}
@@ -90,7 +104,7 @@ func (r *Runner) Run(ctx context.Context) error {
 func (r *Runner) Cycle(ctx context.Context) error {
 	cycleCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	hb, peers, err := gethclient.CollectHeartbeat(cycleCtx, r.geth, r.cfg)
+	hb, peers, err := r.collectHeartbeat(cycleCtx)
 	if err != nil {
 		return fmt.Errorf("collect geth heartbeat: %w", err)
 	}
@@ -101,9 +115,6 @@ func (r *Runner) Cycle(ctx context.Context) error {
 	if !hbResp.Accepted {
 		return fmt.Errorf("heartbeat rejected: %v", hbResp.RejectReason)
 	}
-	if hb.PeerCount >= r.cfg.Agent.TargetPeers {
-		return r.state.Save(r.cfg.LocalState.Path)
-	}
 	resp, err := r.fetchPeers(cycleCtx, hb.NodeID)
 	if err != nil {
 		return err
@@ -111,6 +122,18 @@ func (r *Runner) Cycle(ctx context.Context) error {
 	current := map[string]bool{}
 	for _, p := range peers {
 		current[strings.ToLower(p.ID)] = true
+		if managed := r.state.ManagedPeers[strings.ToLower(p.ID)]; managed != nil {
+			managed.LastObservedPeer = r.now().UTC()
+		}
+	}
+	if hb.PeerCount >= r.cfg.Agent.TargetPeers {
+		replaced, err := r.maybeReplaceManagedPeer(cycleCtx, peers, resp.Peers)
+		if err != nil {
+			r.logger.Warn("managed peer replacement failed", map[string]any{"err": err.Error()})
+		}
+		if !replaced {
+			return r.state.Save(r.cfg.LocalState.Path)
+		}
 	}
 	added := 0
 	for _, p := range resp.Peers {
@@ -124,6 +147,9 @@ func (r *Runner) Cycle(ctx context.Context) error {
 			continue
 		}
 		report := r.tryPeer(cycleCtx, hb.NodeID, p)
+		if err := r.peerReport(cycleCtx, report); err != nil {
+			r.logger.Warn("peer report failed", map[string]any{"to_node_id": report.ToNodeID, "err": err.Error()})
+		}
 		r.logger.Info("peer attempt completed", map[string]any{
 			"to_node_id":     report.ToNodeID,
 			"admin_add_peer": report.AdminAddPeerResult,
@@ -168,7 +194,7 @@ func (r *Runner) fetchPeers(ctx context.Context, nodeID string) (*oracle.PeersRe
 }
 
 func (r *Runner) tryPeer(ctx context.Context, fromNodeID string, p oracle.PeerRecommendation) oracle.PeerReportRequest {
-	now := time.Now().UTC()
+	now := r.now().UTC()
 	report := oracle.PeerReportRequest{FromNodeID: fromNodeID, ToNodeID: p.NodeID, ToEnode: p.Enode, AttemptedAt: now}
 	managed := r.state.ManagedPeers[p.NodeID]
 	if managed == nil {
@@ -176,8 +202,10 @@ func (r *Runner) tryPeer(ctx context.Context, fromNodeID string, p oracle.PeerRe
 		r.state.ManagedPeers[p.NodeID] = managed
 	}
 	managed.LastAttempt = now
+	managed.LastRecommendationScore = p.Score
 	if r.cfg.Agent.DryRun {
 		report.Error = "dry-run: admin_addPeer skipped"
+		managed.LastError = report.Error
 		return report
 	}
 	ok, err := r.geth.AddPeer(ctx, p.Enode)
@@ -185,14 +213,16 @@ func (r *Runner) tryPeer(ctx context.Context, fromNodeID string, p oracle.PeerRe
 	if err != nil {
 		report.Error = err.Error()
 		managed.FailureCount++
+		managed.LastError = report.Error
 		managed.CooldownUntil = backoff(managed.FailureCount)
 		return report
 	}
-	time.Sleep(5 * time.Second)
+	r.sleep(5 * time.Second)
 	peers, err := r.geth.AdminPeers(ctx)
 	if err != nil {
 		report.Error = err.Error()
 		managed.FailureCount++
+		managed.LastError = report.Error
 		managed.CooldownUntil = backoff(managed.FailureCount)
 		return report
 	}
@@ -203,13 +233,16 @@ func (r *Runner) tryPeer(ctx context.Context, fromNodeID string, p oracle.PeerRe
 		report.Caps = peer.Caps
 		report.EthProtocolPresent = gethclient.HasEthCapability(peer)
 		if report.EthProtocolPresent {
-			managed.LastSuccess = time.Now().UTC()
+			managed.LastSuccess = r.now().UTC()
+			managed.LastObservedPeer = managed.LastSuccess
 			managed.FailureCount = 0
+			managed.LastError = ""
 			managed.CooldownUntil = time.Time{}
 		}
 	} else {
 		report.Error = "peer not observed in admin_peers after admin_addPeer"
 		managed.FailureCount++
+		managed.LastError = report.Error
 		managed.CooldownUntil = backoff(managed.FailureCount)
 	}
 	return report
@@ -257,6 +290,46 @@ func backoff(failures int) time.Time {
 	}
 	seconds := 1 << min(failures, 8)
 	return time.Now().Add(time.Duration(seconds) * time.Second)
+}
+
+func (r *Runner) maybeReplaceManagedPeer(ctx context.Context, peers []gethclient.Peer, recs []oracle.PeerRecommendation) (bool, error) {
+	if len(recs) == 0 || len(r.state.ManagedPeers) == 0 {
+		return false, nil
+	}
+	current := map[string]bool{}
+	for _, p := range peers {
+		current[strings.ToLower(p.ID)] = true
+	}
+	best := recs[0]
+	var weakest *ManagedPeer
+	for _, managed := range r.state.ManagedPeers {
+		if weakest == nil || managed.LastRecommendationScore < weakest.LastRecommendationScore || managed.LastObservedPeer.Before(weakest.LastObservedPeer) {
+			weakest = managed
+		}
+	}
+	if weakest == nil {
+		return false, nil
+	}
+	if best.Score <= weakest.LastRecommendationScore+2 {
+		return false, nil
+	}
+	if !current[strings.ToLower(weakest.NodeID)] && weakest.LastObservedPeer.IsZero() {
+		delete(r.state.ManagedPeers, weakest.NodeID)
+		return true, nil
+	}
+	if weakest.Enode == "" {
+		return false, nil
+	}
+	ok, err := r.geth.RemovePeer(ctx, weakest.Enode)
+	if err != nil {
+		return false, err
+	}
+	if ok {
+		delete(r.state.ManagedPeers, weakest.NodeID)
+		r.logger.Info("removed stale managed peer", map[string]any{"node_id": weakest.NodeID, "enode": weakest.Enode})
+		return true, nil
+	}
+	return false, nil
 }
 
 func min(a, b int) int {

@@ -160,6 +160,35 @@ func (s *Store) migrate(ctx context.Context) error {
 			role TEXT NOT NULL,
 			created_at TEXT NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS wire_probe_results (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			node_id TEXT NOT NULL,
+			enode TEXT,
+			enr TEXT,
+			ip TEXT,
+			tcp_port INTEGER,
+			udp_port INTEGER,
+			checked_at TEXT NOT NULL,
+			parse_ok BOOLEAN NOT NULL,
+			parse_status TEXT,
+			tcp_ok BOOLEAN NOT NULL,
+			tcp_latency_ms INTEGER,
+			tcp_status TEXT,
+			discv4_ok BOOLEAN NOT NULL,
+			discv4_status TEXT,
+			discv5_ok BOOLEAN NOT NULL,
+			discv5_status TEXT,
+			rlpx_ok BOOLEAN NOT NULL,
+			rlpx_status TEXT,
+			eth_status_ok BOOLEAN NOT NULL,
+			eth_status_status TEXT,
+			remote_node_id TEXT,
+			caps_json TEXT NOT NULL,
+			network_id TEXT,
+			genesis_hash TEXT,
+			error TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_wire_probe_node_checked ON wire_probe_results(node_id, checked_at DESC)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
@@ -332,6 +361,62 @@ func (s *Store) RecordProbeReport(ctx context.Context, report oracle.ProbeReport
 	return err
 }
 
+func (s *Store) SaveWireProbeResult(ctx context.Context, result oracle.WireProbeResult) error {
+	capsJSON, _ := json.Marshal(result.Caps)
+	_, err := s.db.ExecContext(ctx, s.q(`INSERT INTO wire_probe_results(
+		node_id,enode,enr,ip,tcp_port,udp_port,checked_at,parse_ok,parse_status,tcp_ok,tcp_latency_ms,tcp_status,
+		discv4_ok,discv4_status,discv5_ok,discv5_status,rlpx_ok,rlpx_status,eth_status_ok,eth_status_status,
+		remote_node_id,caps_json,network_id,genesis_hash,error
+	) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
+		result.NodeID, result.Enode, result.ENR, result.IP, result.TCPPort, result.UDPPort, formatTime(result.CheckedAt),
+		result.ParseOK, result.ParseStatus, result.TCPOK, result.TCPLatencyMS, result.TCPStatus,
+		result.Discv4OK, result.Discv4Status, result.Discv5OK, result.Discv5Status, result.RLPxOK, result.RLPxStatus,
+		result.EthStatusOK, result.EthStatusStatus, result.RemoteNodeID, string(capsJSON), result.NetworkID, result.GenesisHash, result.Error,
+	)
+	return err
+}
+
+func (s *Store) LatestWireProbeResult(ctx context.Context, nodeID string) (*oracle.WireProbeResult, error) {
+	row := s.db.QueryRowContext(ctx, s.q(`SELECT id,node_id,enode,enr,ip,tcp_port,udp_port,checked_at,parse_ok,parse_status,tcp_ok,tcp_latency_ms,tcp_status,
+		discv4_ok,discv4_status,discv5_ok,discv5_status,rlpx_ok,rlpx_status,eth_status_ok,eth_status_status,remote_node_id,caps_json,network_id,genesis_hash,error
+		FROM wire_probe_results WHERE node_id=? ORDER BY checked_at DESC, id DESC LIMIT 1`), nodeID)
+	return scanWireProbe(row)
+}
+
+func (s *Store) LatestWireProbeResults(ctx context.Context) (map[string]oracle.WireProbeResult, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id,node_id,enode,enr,ip,tcp_port,udp_port,checked_at,parse_ok,parse_status,tcp_ok,tcp_latency_ms,tcp_status,
+		discv4_ok,discv4_status,discv5_ok,discv5_status,rlpx_ok,rlpx_status,eth_status_ok,eth_status_status,remote_node_id,caps_json,network_id,genesis_hash,error
+		FROM wire_probe_results ORDER BY checked_at DESC, id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]oracle.WireProbeResult{}
+	for rows.Next() {
+		res, err := scanWireProbe(rows)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := out[res.NodeID]; !exists {
+			out[res.NodeID] = *res
+		}
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetReachabilityEdge(ctx context.Context, fromID, toID string) (*oracle.ReachabilityEdge, error) {
+	row := s.db.QueryRowContext(ctx, s.q(`SELECT from_id,from_zone,to_id,success_count,failure_count,last_success,last_failure,median_connect_time_ms,last_error,confidence_score
+		FROM reachability_edges WHERE from_id=? AND to_id=? ORDER BY last_failure DESC, last_success DESC LIMIT 1`), fromID, toID)
+	var e oracle.ReachabilityEdge
+	var lastSuccess, lastFailure string
+	if err := row.Scan(&e.FromID, &e.FromZone, &e.ToID, &e.SuccessCount, &e.FailureCount, &lastSuccess, &lastFailure, &e.MedianConnectTimeMS, &e.LastError, &e.ConfidenceScore); err != nil {
+		return nil, err
+	}
+	e.LastSuccess = parseTime(lastSuccess)
+	e.LastFailure = parseTime(lastFailure)
+	return &e, nil
+}
+
 func (s *Store) AddAudit(ctx context.Context, kind string, payload any) {
 	b, _ := json.Marshal(payload)
 	_, _ = s.db.ExecContext(ctx, s.q(`INSERT INTO audit_events(created_at,kind,payload_json) VALUES(?,?,?)`), formatTime(time.Now().UTC()), kind, string(b))
@@ -389,6 +474,22 @@ func scanNode(row scanner) (*oracle.Node, error) {
 	n.FirstSeen = parseTime(firstSeen)
 	n.LastSeen = parseTime(lastSeen)
 	return n, nil
+}
+
+func scanWireProbe(row scanner) (*oracle.WireProbeResult, error) {
+	res := &oracle.WireProbeResult{}
+	var checkedAt, capsJSON string
+	if err := row.Scan(
+		&res.ID, &res.NodeID, &res.Enode, &res.ENR, &res.IP, &res.TCPPort, &res.UDPPort, &checkedAt,
+		&res.ParseOK, &res.ParseStatus, &res.TCPOK, &res.TCPLatencyMS, &res.TCPStatus,
+		&res.Discv4OK, &res.Discv4Status, &res.Discv5OK, &res.Discv5Status, &res.RLPxOK, &res.RLPxStatus,
+		&res.EthStatusOK, &res.EthStatusStatus, &res.RemoteNodeID, &capsJSON, &res.NetworkID, &res.GenesisHash, &res.Error,
+	); err != nil {
+		return nil, err
+	}
+	res.CheckedAt = parseTime(checkedAt)
+	_ = json.Unmarshal([]byte(capsJSON), &res.Caps)
+	return res, nil
 }
 
 func confidence(success, failure int) float64 {

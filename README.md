@@ -64,6 +64,36 @@ This repository currently implements **Milestone 1**, the working engine:
 - The agent never creates or edits `static-nodes.json`.
 - Tests cover seed parsing, server API, peer selection, and fake Geth IPC.
 
+## Wire-Level Peering Checks
+
+`admin_addPeer` remains the only safe live insertion lever into Geth in this project. The new wire-level layer does not bypass Geth’s peer manager and does not try to force peers in from the outside.
+
+What it adds:
+
+- parse and inspect `enode://` and `enr:` candidates using `go-ethereum`;
+- test whether the advertised TCP endpoint is actually reachable;
+- store the latest probe result in the oracle database;
+- boost peers that are not just claimed, but actually reachable;
+- make failures diagnosable instead of mysterious.
+
+What it does **not** do:
+
+- no Geth patching;
+- no public admin RPC;
+- no packet abuse;
+- no process injection;
+- no `static-nodes.json` dependency;
+- no `admin_addTrustedPeer`.
+
+Useful commands:
+
+```bash
+./bin/uzh-peer-oracle wire-probe --enode "enode://..." --timeout 5s
+./bin/uzh-peer-oracle wire-probe --enr "enr:..." --timeout 5s
+./bin/uzh-peer-oracle diagnose-peer --config configs/agent.example.yml --enode "enode://..."
+./bin/uzh-peer-oracle explain-peer-failure --config configs/oracle.example.yml --node-id A --target-node-id B
+```
+
 ## Quick Start
 
 These commands assume WSL/Linux.

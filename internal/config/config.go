@@ -13,6 +13,7 @@ type Config struct {
 	Server       ServerConfig       `yaml:"server"`
 	Auth         AuthConfig         `yaml:"auth"`
 	Network      NetworkConfig      `yaml:"network"`
+	WireProbe    WireProbeConfig    `yaml:"wire_probe"`
 	Zones        ZonesConfig        `yaml:"zones"`
 	Seed         SeedConfig         `yaml:"seed"`
 	Verification VerificationConfig `yaml:"verification"`
@@ -48,11 +49,21 @@ type TokenConfig struct {
 }
 
 type NetworkConfig struct {
-	ExpectedNetworkID    string `yaml:"expected_network_id"`
-	ExpectedChainID      string `yaml:"expected_chain_id"`
-	ExpectedGenesisHash  string `yaml:"expected_genesis_hash"`
-	DefaultTCPPort       int    `yaml:"default_tcp_port"`
-	DefaultUDPPort       int    `yaml:"default_udp_port"`
+	ExpectedNetworkID   string `yaml:"expected_network_id"`
+	ExpectedChainID     string `yaml:"expected_chain_id"`
+	ExpectedGenesisHash string `yaml:"expected_genesis_hash"`
+	DefaultTCPPort      int    `yaml:"default_tcp_port"`
+	DefaultUDPPort      int    `yaml:"default_udp_port"`
+}
+
+type WireProbeConfig struct {
+	Enabled        bool `yaml:"enabled"`
+	TCPCheck       bool `yaml:"tcp_check"`
+	DiscoveryCheck bool `yaml:"discovery_check"`
+	RLPxCheck      bool `yaml:"rlpx_check"`
+	EthStatusCheck bool `yaml:"eth_status_check"`
+	TimeoutSeconds int  `yaml:"timeout_seconds"`
+	MaxParallel    int  `yaml:"max_parallel"`
 }
 
 type ZonesConfig struct {
@@ -70,15 +81,15 @@ type SeedConfig struct {
 }
 
 type VerificationConfig struct {
-	RequireCorrectNetworkID         bool `yaml:"require_correct_network_id"`
-	RequireCorrectChainID           bool `yaml:"require_correct_chain_id"`
-	RequireGenesisHashIfConfigured  bool `yaml:"require_genesis_hash_if_configured"`
-	RequireTCPReachableForPublic    bool `yaml:"require_tcp_reachable_for_public"`
+	RequireCorrectNetworkID           bool `yaml:"require_correct_network_id"`
+	RequireCorrectChainID             bool `yaml:"require_correct_chain_id"`
+	RequireGenesisHashIfConfigured    bool `yaml:"require_genesis_hash_if_configured"`
+	RequireTCPReachableForPublic      bool `yaml:"require_tcp_reachable_for_public"`
 	AllowPrivateIPsOnlyInPrivateZones bool `yaml:"allow_private_ips_only_in_private_zones"`
-	UseDevP2PIfAvailable            bool `yaml:"use_devp2p_if_available"`
-	TCPTimeoutSeconds                int  `yaml:"tcp_timeout_seconds"`
-	StaleAfterSeconds                int  `yaml:"stale_after_seconds"`
-	DeadAfterSeconds                 int  `yaml:"dead_after_seconds"`
+	UseDevP2PIfAvailable              bool `yaml:"use_devp2p_if_available"`
+	TCPTimeoutSeconds                 int  `yaml:"tcp_timeout_seconds"`
+	StaleAfterSeconds                 int  `yaml:"stale_after_seconds"`
+	DeadAfterSeconds                  int  `yaml:"dead_after_seconds"`
 }
 
 type SelectionConfig struct {
@@ -91,9 +102,9 @@ type SelectionConfig struct {
 }
 
 type SnapshotConfig struct {
-	Enabled            bool   `yaml:"enabled"`
-	PrivateKeyPath     string `yaml:"private_key_path"`
-	PublishPublicKey   bool   `yaml:"publish_public_key"`
+	Enabled          bool   `yaml:"enabled"`
+	PrivateKeyPath   string `yaml:"private_key_path"`
+	PublishPublicKey bool   `yaml:"publish_public_key"`
 }
 
 type StorageConfig struct {
@@ -108,34 +119,34 @@ type MetricsConfig struct {
 }
 
 type AgentConfig struct {
-	NodeName                 string `yaml:"node_name"`
-	Role                     string `yaml:"role"`
-	OracleURL                string `yaml:"oracle_url"`
-	TokenEnv                 string `yaml:"token_env"`
-	HeartbeatIntervalSeconds int    `yaml:"heartbeat_interval_seconds"`
-	PeerRefreshIntervalSeconds int  `yaml:"peer_refresh_interval_seconds"`
-	JitterPercent            int    `yaml:"jitter_percent"`
-	TargetPeers              int    `yaml:"target_peers"`
-	MaxManagedPeers          int    `yaml:"max_managed_peers"`
-	DryRun                   bool   `yaml:"dry_run"`
+	NodeName                   string `yaml:"node_name"`
+	Role                       string `yaml:"role"`
+	OracleURL                  string `yaml:"oracle_url"`
+	TokenEnv                   string `yaml:"token_env"`
+	HeartbeatIntervalSeconds   int    `yaml:"heartbeat_interval_seconds"`
+	PeerRefreshIntervalSeconds int    `yaml:"peer_refresh_interval_seconds"`
+	JitterPercent              int    `yaml:"jitter_percent"`
+	TargetPeers                int    `yaml:"target_peers"`
+	MaxManagedPeers            int    `yaml:"max_managed_peers"`
+	DryRun                     bool   `yaml:"dry_run"`
 }
 
 type GethConfig struct {
-	IPCPath               string `yaml:"ipc_path"`
-	ExpectedNetworkID     string `yaml:"expected_network_id"`
-	ExpectedChainID       string `yaml:"expected_chain_id"`
-	ExpectedGenesisHash   string `yaml:"expected_genesis_hash"`
-	PublicIP              string `yaml:"public_ip"`
-	P2PTCPPort            int    `yaml:"p2p_tcp_port"`
-	P2PUDPPort            int    `yaml:"p2p_udp_port"`
+	IPCPath             string `yaml:"ipc_path"`
+	ExpectedNetworkID   string `yaml:"expected_network_id"`
+	ExpectedChainID     string `yaml:"expected_chain_id"`
+	ExpectedGenesisHash string `yaml:"expected_genesis_hash"`
+	PublicIP            string `yaml:"public_ip"`
+	P2PTCPPort          int    `yaml:"p2p_tcp_port"`
+	P2PUDPPort          int    `yaml:"p2p_udp_port"`
 }
 
 type SafetyConfig struct {
-	NeverRemoveUnmanagedPeers       bool   `yaml:"never_remove_unmanaged_peers"`
-	RequirePublicEnodeIPForPublicZone bool `yaml:"require_public_enode_ip_for_public_zone"`
-	WarnIfEnodeIPMismatch          bool   `yaml:"warn_if_enode_ip_mismatch"`
-	VerifySignedSnapshots          bool   `yaml:"verify_signed_snapshots"`
-	OracleSnapshotPublicKey        string `yaml:"oracle_snapshot_public_key"`
+	NeverRemoveUnmanagedPeers         bool   `yaml:"never_remove_unmanaged_peers"`
+	RequirePublicEnodeIPForPublicZone bool   `yaml:"require_public_enode_ip_for_public_zone"`
+	WarnIfEnodeIPMismatch             bool   `yaml:"warn_if_enode_ip_mismatch"`
+	VerifySignedSnapshots             bool   `yaml:"verify_signed_snapshots"`
+	OracleSnapshotPublicKey           string `yaml:"oracle_snapshot_public_key"`
 }
 
 type LocalStateConfig struct {
@@ -146,9 +157,9 @@ type ProbeConfig struct {
 	ProbeID         string `yaml:"probe_id"`
 	Zone            string `yaml:"zone"`
 	OracleURL       string `yaml:"oracle_url"`
-	TokenEnv         string `yaml:"token_env"`
+	TokenEnv        string `yaml:"token_env"`
 	IntervalSeconds int    `yaml:"interval_seconds"`
-	JitterPercent    int    `yaml:"jitter_percent"`
+	JitterPercent   int    `yaml:"jitter_percent"`
 }
 
 type ProbeChecksConfig struct {
@@ -185,6 +196,13 @@ func Defaults() *Config {
 	cfg.Network.ExpectedChainID = "0x2be"
 	cfg.Network.DefaultTCPPort = 30308
 	cfg.Network.DefaultUDPPort = 30308
+	cfg.WireProbe.Enabled = true
+	cfg.WireProbe.TCPCheck = true
+	cfg.WireProbe.DiscoveryCheck = true
+	cfg.WireProbe.RLPxCheck = true
+	cfg.WireProbe.EthStatusCheck = false
+	cfg.WireProbe.TimeoutSeconds = 5
+	cfg.WireProbe.MaxParallel = 16
 	cfg.Zones.DefaultPublicZone = "public"
 	cfg.Zones.UniversityCIDRs = []string{"130.60.0.0/16", "157.173.0.0/16"}
 	cfg.Zones.PrivateZones = []string{"uzh-vpn", "uzh-campus", "lab-a"}
@@ -253,6 +271,12 @@ func (c *Config) Normalize() {
 	}
 	if c.Network.DefaultUDPPort == 0 {
 		c.Network.DefaultUDPPort = 30308
+	}
+	if c.WireProbe.TimeoutSeconds == 0 {
+		c.WireProbe.TimeoutSeconds = 5
+	}
+	if c.WireProbe.MaxParallel == 0 {
+		c.WireProbe.MaxParallel = 16
 	}
 	if c.Zones.DefaultPublicZone == "" {
 		c.Zones.DefaultPublicZone = "public"

@@ -9,16 +9,19 @@ import (
 
 type State struct {
 	ManagedPeers map[string]*ManagedPeer `json:"managed_peers"`
-	LastSnapshot  []byte                  `json:"last_snapshot,omitempty"`
+	LastSnapshot []byte                  `json:"last_snapshot,omitempty"`
 }
 
 type ManagedPeer struct {
-	NodeID        string    `json:"node_id"`
-	Enode         string    `json:"enode"`
-	LastAttempt   time.Time `json:"last_attempt"`
-	LastSuccess   time.Time `json:"last_success"`
-	FailureCount  int       `json:"failure_count"`
-	CooldownUntil time.Time `json:"cooldown_until"`
+	NodeID                  string    `json:"node_id"`
+	Enode                   string    `json:"enode"`
+	LastAttempt             time.Time `json:"last_attempt"`
+	LastSuccess             time.Time `json:"last_success"`
+	LastObservedPeer        time.Time `json:"last_observed_peer"`
+	FailureCount            int       `json:"failure_count"`
+	CooldownUntil           time.Time `json:"cooldown_until"`
+	LastRecommendationScore int       `json:"last_recommendation_score"`
+	LastError               string    `json:"last_error,omitempty"`
 }
 
 func LoadState(path string) (*State, error) {

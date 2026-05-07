@@ -128,6 +128,26 @@ func TestMilestone1ServerAPI(t *testing.T) {
 	if len(peers.Peers) != 1 || peers.Peers[0].NodeName != "hub-public-1" {
 		t.Fatalf("unexpected peers: %+v", peers.Peers)
 	}
+
+	report := oracle.PeerReportRequest{
+		FromNodeID:            nodeID,
+		ToNodeID:              res.Peers[0].NodeID,
+		ToEnode:               res.Peers[0].Enode,
+		AdminAddPeerResult:    true,
+		ConnectedAfterSeconds: true,
+		ObservedInAdminPeers:  true,
+		EthProtocolPresent:    true,
+		Caps:                  []string{"eth/66"},
+		RemoteAddress:         "130.60.24.247:30308",
+	}
+	doJSON(t, ts.URL+"/v1/peer-report", token, report, nil)
+	edge, err := app.store.GetReachabilityEdge(ctx, nodeID, res.Peers[0].NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edge.SuccessCount != 1 {
+		t.Fatalf("expected updated reachability edge: %+v", edge)
+	}
 }
 
 func doJSON(t *testing.T, url, token string, in any, out any) {

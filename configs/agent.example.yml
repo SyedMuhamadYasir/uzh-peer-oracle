@@ -19,6 +19,15 @@ geth:
   p2p_tcp_port: 30308
   p2p_udp_port: 30308
 
+wire_probe:
+  enabled: true
+  tcp_check: true
+  discovery_check: true
+  rlpx_check: true
+  eth_status_check: false
+  timeout_seconds: 5
+  max_parallel: 16
+
 zones:
   hints: []
   auto_detect: true
