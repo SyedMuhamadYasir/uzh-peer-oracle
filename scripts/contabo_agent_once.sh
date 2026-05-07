@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
+
+echo "# running one Contabo peering cycle"
+exec ./bin/uzh-peer-oracle agent --config configs/uzhethpow.contabo.agent.yml --once

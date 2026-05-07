@@ -17,6 +17,15 @@
 
 ---
 
+## Operator Mode vs Student Mode
+
+Right now, `uzh-peer-oracle` has a clear split:
+
+- operator mode currently uses the local helper command beside Geth;
+- student mode should not require a separate manual helper step;
+- current Contabo validation is operator mode;
+- student-facing packaging will later hide the plumbing or use curated bootnodes / DNS.
+
 ## What This Is
 
 `uzh-peer-oracle` is a Go-first MVP for helping private Ethereum/Geth teaching nodes find peers they can actually reach.
@@ -118,6 +127,17 @@ Useful live-run commands:
 ./bin/uzh-peer-oracle agent --config configs/uzhethpow.contabo.agent.yml --once
 ./scripts/contabo_peer_perf.sh 120 5
 ```
+
+## Contabo Quick Ops
+
+- oracle up: `./scripts/contabo_oracle_up.sh`
+- doctor: `./scripts/contabo_doctor.sh`
+- one-shot helper: `./scripts/contabo_agent_once.sh`
+- smoke flow: `./scripts/contabo_smoke.sh`
+- tmux workspace: `./scripts/contabo_tmux_up.sh`
+- curated bootnodes export: `./scripts/contabo_bootnodes_toml.sh`
+- runbook: [docs/CONTABO_UZHETHPOW_LIVE_TEST.md](/mnt/d/Download/Academic%20Stuff/PhD/Codex%20Projects/uzh-peer-oracle/docs/CONTABO_UZHETHPOW_LIVE_TEST.md)
+- student-mode note: [docs/STUDENT_MODE.md](/mnt/d/Download/Academic%20Stuff/PhD/Codex%20Projects/uzh-peer-oracle/docs/STUDENT_MODE.md)
 
 ## Quick Start
 
